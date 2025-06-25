@@ -1,5 +1,8 @@
+import os
 import sqlite3
-
+import logging
+logger = logging.getLogger(__name__)
+UPLOAD_FOLDER = 'static/uploads'
 def get_db_connection():
     conn = sqlite3.connect("news.db")
     conn.row_factory = sqlite3.Row
@@ -95,5 +98,65 @@ CREATE TABLE IF NOT EXISTS transfers (
     new_team_logo_dark TEXT
 )
 ''')
+
+    if not os.path.exists(UPLOAD_FOLDER):
+        os.makedirs(UPLOAD_FOLDER)
+
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='news'")
+    table_exists = cursor.fetchone()
+
+    if table_exists:
+        cursor.execute("PRAGMA table_info(news)")
+        columns = {col[1]: col for col in cursor.fetchall()}
+
+        if 'thumbnail_url' not in columns:
+            cursor.execute('ALTER TABLE news ADD COLUMN thumbnail_url TEXT')
+
+        if 'id' not in columns or 'AUTOINCREMENT' not in cursor.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='news'"
+        ).fetchone()[0]:
+            cursor.execute('''
+                CREATE TABLE news_temp (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
+                    description TEXT,
+                    writer TEXT NOT NULL,
+                    thumbnail_url TEXT,
+                    news_link TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            cursor.execute('''
+                INSERT INTO news_temp (id, title, description, writer, thumbnail_url, news_link, created_at, updated_at)
+                SELECT id, title, description, writer, thumbnail_url, news_link, created_at, updated_at FROM news
+            ''')
+            cursor.execute('DROP TABLE news')
+            cursor.execute('ALTER TABLE news_temp RENAME TO news')
+    else:
+        cursor.execute('''
+            CREATE TABLE news (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                description TEXT,
+                writer TEXT NOT NULL,
+                thumbnail_url TEXT,
+                news_link TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
     conn.commit()
     conn.close()
+
+def reset_db_sequence():
+    try:
+        conn = sqlite3.connect('news.db')
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM sqlite_sequence WHERE name IN ('news', 'teams', 'events', 'ewc_info')")
+        conn.commit()
+    except sqlite3.Error as e:
+        logger.error(f"Failed to reset SQLite sequence: {str(e)}")
+        raise
+    finally:
+        conn.close()
