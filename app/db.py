@@ -47,6 +47,13 @@ def init_db():
             logo TEXT
         )
     ''')
-
+    # Create teams table (if not already added)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS teams (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            team_name TEXT,
+            logo_url TEXT
+        )
+    ''')
     conn.commit()
     conn.close()
