@@ -1,4 +1,4 @@
-# app/routes/ewc_events.py
+
 from fastapi import APIRouter, Query
 from typing import List, Dict, Any
 from app.ewc_events import fetch_ewc_events
